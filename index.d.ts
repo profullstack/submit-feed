@@ -68,7 +68,7 @@ export interface FetchOptions {
   lookup?: (hostname: string) => Promise<string[]>;
   /** Default 15000. */
   timeoutMs?: number;
-  /** Default 5 MiB. The body is cut there, not refused. */
+  /** Default 16 MiB. The body is cut there, not refused, and `truncated` says so. */
   maxBytes?: number;
   userAgent?: string;
   headers?: Record<string, string>;
@@ -92,6 +92,8 @@ export interface SafeFetchResult {
   body: string;
   /** The final URL after redirects. */
   url: string;
+  /** The body was cut at maxBytes. resolveFeed repairs a cut feed at its last complete item. */
+  truncated?: boolean;
   retryAfter?: number | null;
   /** invalid-url | blocked-host | blocked-redirect | timeout | fetch-failed */
   error?: string;
@@ -246,6 +248,8 @@ export const DEFAULT_TIMEOUT_MS: number;
 export const DEFAULT_MAX_BYTES: number;
 /** fetch with the SSRF guard, a timeout and a body cap. */
 export function safeFetch(url: string, opts?: FetchOptions): Promise<SafeFetchResult>;
+/** Close a feed document cut off by the byte cap at its last complete item; null when nothing is left. */
+export function repairTruncated(body: string): string | null;
 /** Advertised feed links reordered so those under the page's own path come first. */
 export function nearestFirst(links: string[], pageUrl: string): string[];
 /** A site or feed URL to a parsed feed: the URL itself, then advertised links (nearest the page's path first), then guesses. */

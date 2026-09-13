@@ -39,7 +39,7 @@ async function defaultLookup(hostname) {
 export const DEFAULT_USER_AGENT =
   'submit-feed/0.1 (+https://github.com/profullstack/submit-feed; feed directory)';
 export const DEFAULT_TIMEOUT_MS = 15_000;
-export const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
+export const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
 
 /**
  * Fetch a URL with the guards a submit endpoint needs: the private-address
@@ -84,12 +84,13 @@ export async function safeFetch(url, opts = {}) {
       return { ok: false, status: res.status, contentType: '', body: '', url: finalUrl, error: 'blocked-redirect' };
     }
 
-    const body = await readCapped(res, opts.maxBytes ?? DEFAULT_MAX_BYTES);
+    const { body, truncated } = await readCapped(res, opts.maxBytes ?? DEFAULT_MAX_BYTES);
     return {
       ok: res.ok,
       status: res.status,
       contentType: res.headers.get('content-type') ?? '',
       body,
+      truncated,
       url: finalUrl,
       retryAfter: retryAfterSeconds(res.headers.get('retry-after')),
     };
@@ -118,25 +119,68 @@ export async function safeFetch(url, opts = {}) {
 async function readCapped(res, maxBytes) {
   if (!res.body || typeof res.body.getReader !== 'function') {
     const whole = await res.text();
-    return whole.length > maxBytes ? whole.slice(0, maxBytes) : whole;
+    return { body: whole.length > maxBytes ? whole.slice(0, maxBytes) : whole, truncated: whole.length > maxBytes };
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let out = '';
   let seen = 0;
+  let truncated = false;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     seen += value.byteLength;
     if (seen > maxBytes) {
       out += decoder.decode(value.subarray(0, value.byteLength - (seen - maxBytes)), { stream: true });
+      truncated = true;
       await reader.cancel().catch(() => {});
       break;
     }
     out += decoder.decode(value, { stream: true });
   }
   out += decoder.decode();
-  return out;
+  return { body: out, truncated };
+}
+
+/**
+ * Close a feed document that was cut off by the byte cap.
+ *
+ * A show with a thousand episodes has a feed of several megabytes, and a
+ * document cut mid-item is not XML: the parser throws and the resolver
+ * would move on to the next candidate, which for a show page is the site's
+ * combined feed. Cutting at the last complete item and closing the root
+ * gives a parseable document that says everything a directory needs; the
+ * missing tail is the oldest episodes.
+ *
+ * @param {string} body
+ * @returns {string|null} the repaired document, or null when there is nothing to keep
+ */
+export function repairTruncated(body) {
+  const src = String(body ?? '');
+  const head = src.slice(0, 4000).toLowerCase();
+  const closers = /<rss\b/.test(head)
+    ? { item: '</item>', tail: '\n</channel>\n</rss>' }
+    : /<feed\b/.test(head)
+      ? { item: '</entry>', tail: '\n</feed>' }
+      : /<rdf:rdf\b/.test(head)
+        ? { item: '</item>', tail: '\n</rdf:RDF>' }
+        : null;
+  if (!closers) return null;
+  const at = src.lastIndexOf(closers.item);
+  if (at < 0) return null;
+  return src.slice(0, at + closers.item.length) + closers.tail;
+}
+
+/**
+ * Parse a fetched body, repairing it first when the cap cut it short.
+ *
+ * @param {{ body: string, url: string, truncated?: boolean }} res
+ */
+function parseFetched(res) {
+  const feed = parseFeed(res.body, res.url);
+  if (feed || !res.truncated) return feed;
+  const repaired = repairTruncated(res.body);
+  return repaired ? parseFeed(repaired, res.url) : null;
 }
 
 /**
@@ -175,7 +219,7 @@ export async function resolveFeed(input, opts = {}) {
   let rejected = null;
 
   if (looksLikeFeed(first.contentType, first.body)) {
-    const feed = parseFeed(first.body, first.url);
+    const feed = parseFetched(first);
     if (feed) {
       if (!wantPodcast || feed.episodeCount > 0) return { ok: true, feedUrl: first.url, feed, tried };
       rejected = feed;
@@ -197,7 +241,7 @@ export async function resolveFeed(input, opts = {}) {
     if (!res.ok) continue;
     if (!looksLikeFeed(res.contentType, res.body)) continue;
 
-    const feed = parseFeed(res.body, res.url);
+    const feed = parseFetched(res);
     if (!feed || feed.items.length === 0) continue;
     if (wantPodcast && feed.episodeCount === 0) {
       rejected = rejected ?? feed;

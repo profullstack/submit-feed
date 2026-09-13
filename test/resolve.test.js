@@ -107,3 +107,30 @@ test('resolveFeed prefers the feed advertised under the page path', async () => 
   assert.equal(r.feedUrl, 'https://c.com/podcast/feed');
   assert.deepEqual(calls, ['https://c.com/podcast', 'https://c.com/podcast/feed']);
 });
+
+test('a feed cut by the byte cap is repaired at its last complete item', async () => {
+  const { repairTruncated } = await import('../src/index.js');
+  const whole = RSS(EP + EP.replace('<guid>e</guid>', '<guid>f</guid>') + EP.replace('<guid>e</guid>', '<guid>g</guid>'));
+  const cut = whole.slice(0, whole.lastIndexOf('<item>') + 20);
+  const repaired = repairTruncated(cut);
+  assert.ok(repaired.endsWith('</rss>'));
+  const { parseFeed } = await import('../src/core.js');
+  assert.equal(parseFeed(cut, 'x'), null);
+  assert.equal(parseFeed(repaired, 'x').itemCount, 2);
+  assert.equal(repairTruncated('<html>'), null);
+  assert.equal(repairTruncated('<rss><channel><title>t</title>'), null);
+
+  // Through the resolver: the show feed is over the cap, the site feed is not.
+  const { fetch, calls } = fakeFetch({
+    'https://c.com/podcast': { body: '<html><link rel="alternate" type="application/rss+xml" href="/feed"><link rel="alternate" type="application/rss+xml" href="/podcast/feed"></html>' },
+    'https://c.com/podcast/feed': { type: 'application/xml', body: whole },
+    'https://c.com/feed': { type: 'application/xml', body: RSS(EP) },
+  });
+  const r = await resolveFeed('https://c.com/podcast', { fetch, lookup, maxBytes: whole.length - 30 });
+  assert.equal(r.ok, true);
+  assert.equal(r.feedUrl, 'https://c.com/podcast/feed');
+  assert.equal(r.feed.itemCount, 2);
+  assert.deepEqual(calls, ['https://c.com/podcast', 'https://c.com/podcast/feed']);
+  const sf = await safeFetch('https://c.com/podcast/feed', { fetch, lookup, maxBytes: 10 });
+  assert.equal(sf.truncated, true);
+});
