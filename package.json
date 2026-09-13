@@ -1,0 +1,41 @@
+{
+  "name": "@profullstack/submit-feed",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "One way to add a feed to a directory, shared by every Profullstack site that takes one. Turns whatever a person pastes into a feed: normalises the URL, refuses private addresses, discovers the feed behind a site, parses RSS, Atom and JSON Feed at channel level, reads OPML. Carries the submit contract too: the request shapes a submit endpoint accepts, the reply it gives, the error codes, the MCP tool, and a client that speaks it.",
+  "keywords": [
+    "rss",
+    "atom",
+    "podcast",
+    "feed",
+    "submit",
+    "feed-discovery",
+    "opml",
+    "directory",
+    "ssrf",
+    "mcp",
+    "json-feed",
+    "rssamplifier",
+    "p0dcasters"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/profullstack/submit-feed.git"
+  },
+  "homepage": "https://github.com/profullstack/submit-feed#readme",
+  "bugs": { "url": "https://github.com/profullstack/submit-feed/issues" },
+  "license": "MIT",
+  "author": "Profullstack, LLC",
+  "exports": {
+    ".": { "types": "./index.d.ts", "import": "./src/index.js" },
+    "./core": { "types": "./index.d.ts", "import": "./src/core.js" },
+    "./package.json": "./package.json"
+  },
+  "types": "./index.d.ts",
+  "files": ["src", "index.d.ts", "README.md", "LICENSE"],
+  "engines": { "node": ">=20.11" },
+  "sideEffects": false,
+  "publishConfig": { "access": "public" },
+  "dependencies": { "fast-xml-parser": "^5.2.5" },
+  "scripts": { "test": "node --test" }
+}
