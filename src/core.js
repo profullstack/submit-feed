@@ -1,6 +1,7 @@
 /**
- * Everything that runs anywhere: no node: imports, no network. Safe to
- * import from a browser bundle, an edge runtime or a worker.
+ * Everything that runs anywhere: no node: imports, not even dynamic ones,
+ * and no network. Safe to import from a browser bundle, an edge runtime or
+ * a worker; webpack refuses a client bundle that so much as mentions node:dns.
  */
 export { normalizeUrl, normalizeUrls, plausibleHost, splitUrls, hostOf } from './normalize.js';
 export { COMMON_PATHS, PODCAST_PATHS, FEED_TYPES, findFeedLinks, guessFeedUrls, looksLikeFeed } from './discover.js';

@@ -73,39 +73,6 @@ export function isInternalName(hostname) {
 }
 
 /**
- * Resolve a hostname and refuse if any address is internal.
- *
- * Every resolved address is checked, not just the first: a hostname with both
- * a public and a private A record would otherwise slip through.
- *
- * @param {string} hostname
- * @param {{ lookup?: (hostname: string) => Promise<string[]> }} [opts]
- *   `lookup` returns every address for the name; defaults to node:dns
- * @returns {Promise<boolean>} true when safe to fetch
- */
-export async function isPublicHost(hostname, opts = {}) {
-  const bare = String(hostname ?? '').replace(/^\[|\]$/g, '');
-  if (isIPv4(bare) || isIPv6(bare)) return !isBlockedAddress(bare);
-  if (isInternalName(bare)) return false;
-
-  const lookup = opts.lookup ?? defaultLookup;
-  try {
-    const addrs = await lookup(bare);
-    if (!addrs || addrs.length === 0) return false;
-    return addrs.every((a) => !isBlockedAddress(a));
-  } catch {
-    return false;
-  }
-}
-
-/** @param {string} hostname */
-async function defaultLookup(hostname) {
-  const dns = await import('node:dns/promises');
-  const addrs = await dns.lookup(hostname, { all: true });
-  return addrs.map((a) => a.address);
-}
-
-/**
  * How long a server asked us to wait, in seconds.
  *
  * RFC 9110 allows either a delay in seconds or an HTTP date. Anything
