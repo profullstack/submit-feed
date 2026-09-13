@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/submit-feed",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "One way to add a feed to a directory, shared by every Profullstack site that takes one. Turns whatever a person pastes into a feed: normalises the URL, refuses private addresses, discovers the feed behind a site, parses RSS, Atom and JSON Feed at channel level, reads OPML. Carries the submit contract too: the request shapes a submit endpoint accepts, the reply it gives, the error codes, the MCP tool, and a client that speaks it.",
   "keywords": [

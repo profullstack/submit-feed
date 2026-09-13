@@ -90,3 +90,20 @@ test('safeFetch blocks private hosts, private redirects and oversize bodies', as
   const slow = await safeFetch('https://s.org/slow', { lookup, timeoutMs: 20, fetch: (_u, init) => new Promise((_r, rej) => init.signal.addEventListener('abort', () => rej(Object.assign(new Error('a'), { name: 'AbortError' })))) });
   assert.equal(slow.error, 'timeout');
 });
+
+test('resolveFeed prefers the feed advertised under the page path', async () => {
+  const { nearestFirst } = await import('../src/index.js');
+  assert.deepEqual(
+    nearestFirst(['https://c.com/feed', 'https://c.com/podcast/feed', 'https://other.org/x'], 'https://c.com/podcast'),
+    ['https://c.com/podcast/feed', 'https://c.com/feed', 'https://other.org/x'],
+  );
+  assert.deepEqual(nearestFirst(['https://c.com/feed'], 'https://c.com/'), ['https://c.com/feed']);
+  const { fetch, calls } = fakeFetch({
+    'https://c.com/podcast': { body: '<html><link rel="alternate" type="application/rss+xml" href="/feed"><link rel="alternate" type="application/rss+xml" href="/podcast/feed"></html>' },
+    'https://c.com/feed': { type: 'application/rss+xml', body: RSS(EP) },
+    'https://c.com/podcast/feed': { type: 'application/rss+xml', body: RSS(EP) },
+  });
+  const r = await resolveFeed('https://c.com/podcast', { fetch, lookup });
+  assert.equal(r.feedUrl, 'https://c.com/podcast/feed');
+  assert.deepEqual(calls, ['https://c.com/podcast', 'https://c.com/podcast/feed']);
+});

@@ -182,7 +182,7 @@ export async function resolveFeed(input, opts = {}) {
     }
   }
 
-  const candidates = [...findFeedLinks(first.body, first.url), ...guessFeedUrls(first.url, { kind: opts.kind })];
+  const candidates = [...nearestFirst(findFeedLinks(first.body, first.url), first.url), ...guessFeedUrls(first.url, { kind: opts.kind })];
   const seen = new Set([first.url]);
   const maxCandidates = opts.maxCandidates ?? candidates.length;
   let attempts = 0;
@@ -208,4 +208,40 @@ export async function resolveFeed(input, opts = {}) {
 
   if (rejected) return { ok: false, url: start, error: 'not-a-podcast', feed: rejected, tried };
   return { ok: false, url: start, error: 'no-feed-found', tried };
+}
+
+/**
+ * Advertised feeds, the ones under the submitted page's own path first.
+ *
+ * A show's page on a site that also publishes a site-wide feed advertises
+ * both, and the site-wide one usually comes first in the head: submitting
+ * changelog.com/podcast found changelog.com/feed instead of
+ * changelog.com/podcast/feed. Document order is kept within each group.
+ *
+ * @param {string[]} links
+ * @param {string} pageUrl
+ * @returns {string[]}
+ */
+export function nearestFirst(links, pageUrl) {
+  let base;
+  try {
+    base = new URL(pageUrl);
+  } catch {
+    return links;
+  }
+  const dir = base.pathname.replace(/\/+$/, '');
+  if (!dir) return links;
+  const near = [];
+  const far = [];
+  for (const link of links) {
+    let path = '';
+    try {
+      const u = new URL(link);
+      path = u.origin === base.origin ? u.pathname : '';
+    } catch {
+      // unresolvable: keep it, but last
+    }
+    (path === dir || path.startsWith(`${dir}/`) || path.startsWith(`${dir}.`) || path.startsWith(`${dir}?`) ? near : far).push(link);
+  }
+  return [...near, ...far];
 }

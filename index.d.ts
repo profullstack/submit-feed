@@ -246,7 +246,9 @@ export const DEFAULT_TIMEOUT_MS: number;
 export const DEFAULT_MAX_BYTES: number;
 /** fetch with the SSRF guard, a timeout and a body cap. */
 export function safeFetch(url: string, opts?: FetchOptions): Promise<SafeFetchResult>;
-/** A site or feed URL to a parsed feed: the URL itself, then advertised links, then guesses. */
+/** Advertised feed links reordered so those under the page's own path come first. */
+export function nearestFirst(links: string[], pageUrl: string): string[];
+/** A site or feed URL to a parsed feed: the URL itself, then advertised links (nearest the page's path first), then guesses. */
 export function resolveFeed(input: string, opts?: ResolveOptions): Promise<ResolveResult>;
 
 // ---- spec ------------------------------------------------------------------
